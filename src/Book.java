@@ -8,9 +8,11 @@ public class Book {
 	public int NumOfCop;
 	public int NumLeft;
 	public List<Author> authors;
+	public List<Customer> borrowedBy;
 
 	public Book(){
 		this.authors = new ArrayList<Author>();
+		this.borrowedBy = new ArrayList<Customer>();
 	}
 
 	public String toFullString(){
@@ -19,6 +21,7 @@ public class Book {
 		result += String.format("\tTitle:\t%s\r\n", Title);
 		result += String.format("\tNumOfCop:\t%d\r\n", NumOfCop);
 		result += String.format("\tNumOfCop:\t%d\r\n", NumLeft);
+		// print authors
 		result += "\tAuthors:\t";
 		if(authors.isEmpty()){
 			result += "(None)";
@@ -26,11 +29,21 @@ public class Book {
 			for(Author auth: authors){
 				result += auth.compactName() + ", ";
 			}
-			result = result.substring(0, result.length() - 3); // remove the last ', '
+			result = result.substring(0, result.length() - 3) + "\r\n"; // remove the last ', '
 		}
-		result += "\r\n";
+		// print borrowed by if applicable
+		if(!borrowedBy.isEmpty()){
+			result += "\tBorrowed By:\r\n";
+			for(Customer c: borrowedBy){
+				result += "\t" + c.toShortString() + "\r\n";
+			}
+		}
 
-		return result;
+		return result + "\r\n";
+	}
+
+	public String toShortString(){
+		return String.format("\t%d - %s\r\n", ISBN, Title);
 	}
 
 }

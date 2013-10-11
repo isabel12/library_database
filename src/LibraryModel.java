@@ -9,6 +9,11 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import javax.swing.*;
 
@@ -66,7 +71,8 @@ public class LibraryModel {
 	//===========================================================================================
 
 	public String bookLookup(int isbn) {
-		try {
+
+		try{
 			String result = formattedTitle("Book Lookup");
 			Statement stmt = conn.createStatement();
 			Book book = new Book();
@@ -100,37 +106,126 @@ public class LibraryModel {
 
 			return result;
 
-		} catch (SQLException e) {
+		} catch(SQLException e){
+			return e.getMessage();
+		}
+
+	}
+
+	public String showCatalogue() {
+		try{
+
+			Statement stmt = conn.createStatement();
+			String result = formattedTitle("Show Catalogue");
+			Map<Integer, Book> books = new HashMap<Integer, Book>();
+
+			// get info from Book
+			String sql = String.format("SELECT * FROM Book;");
+			res = stmt.executeQuery(sql);
+			// if no results
+			if(!res.isBeforeFirst()){
+				return result + noResults();
+			}
+			while(res.next()){
+				Book book = new Book();
+				book.ISBN = res.getInt("ISBN");
+				book.Title = res.getString("Title");
+				book.NumOfCop = res.getInt("NumOfCop");
+				book.NumLeft = res.getInt("NumLeft");
+				books.put(book.ISBN, book);
+			}
+
+			// get info from authors, zip together with books
+			sql = "SELECT ISBN, AuthorSeqNo, Name, Surname FROM Author NATURAL JOIN Book_Author ORDER BY ISBN, AuthorSeqNo;";
+			res = stmt.executeQuery(sql);
+			while(res.next()){
+				Author author = new Author();
+				author.Name = res.getString("Name").trim();
+				author.Surname = res.getString("Surname").trim();
+				int ISBN = res.getInt("ISBN");
+				books.get(ISBN).authors.add(author);
+			}
+
+			// print each book to result
+			List<Integer> keys = new ArrayList<Integer>(books.keySet());
+			Collections.sort(keys);
+			for(int isbn: keys){
+				result += books.get(isbn).toFullString() + newLine();
+			}
+
+			// print total number
+			result += String.format("(%d results)", keys.size()) + newLine();
+
+			return result;
+
+		} catch(SQLException e){
 			return e.getMessage();
 		}
 	}
 
-	public String showCatalogue() {
+	public String showLoanedBooks() {
 		try {
+
 			Statement stmt = conn.createStatement();
 			String result = formattedTitle("Show Catalogue");
+			Map<Integer, Book> books = new HashMap<Integer, Book>();
 
+			// get info from Books
+			String sql = String.format("SELECT * FROM Book WHERE ISBN IN (SELECT ISBN from Cust_Book);");
+			res = stmt.executeQuery(sql);
+			// if no results
+			if(!res.isBeforeFirst()){
+				return result + noResults();
+			}
+			while(res.next()){
+				Book book = new Book();
+				book.ISBN = res.getInt("ISBN");
+				book.Title = res.getString("Title");
+				book.NumOfCop = res.getInt("NumOfCop");
+				book.NumLeft = res.getInt("NumLeft");
+				books.put(book.ISBN, book);
+			}
 
+			// get info from authors, zip together with books
+			sql = "SELECT ISBN, AuthorSeqNo, Name, Surname FROM Author NATURAL JOIN Book_Author WHERE ISBN IN (SELECT ISBN from Cust_Book) ORDER BY ISBN, AuthorSeqNo;";
+			res = stmt.executeQuery(sql);
+			while(res.next()){
+				Author author = new Author();
+				author.Name = res.getString("Name").trim();
+				author.Surname = res.getString("Surname").trim();
+				int ISBN = res.getInt("ISBN");
+				books.get(ISBN).authors.add(author);
+			}
 
+			// get and add info about customers who are borrowing each book
+			sql = "SELECT * FROM Customer NATURAL JOIN Cust_Book;";
+			res = stmt.executeQuery(sql);
+			while(res.next()){
+				Customer c = new Customer();
+				c.customerID = res.getInt("CustomerID");
+				c.f_name = res.getString("F_Name").trim();
+				c.l_name = res.getString("L_Name").trim();
+				c.city = res.getString("City").trim();
 
+				int ISBN = res.getInt("ISBN");
+				books.get(ISBN).borrowedBy.add(c);
+			}
 
+			// print each book to result
+			List<Integer> keys = new ArrayList<Integer>(books.keySet());
+			Collections.sort(keys);
+			for(int isbn: keys){
+				result += books.get(isbn).toFullString() + newLine();
+			}
 
+			// print total number
+			result += String.format("(%d results)", keys.size()) + newLine();
 
+			return result;
 
 		} catch (SQLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			return e.getMessage();
 		}
-
-
-
-
-
-		return "Show Catalogue Stub";
-	}
-
-	public String showLoanedBooks() {
-		return "Show Loaned Books Stub";
 	}
 
 	public String showAuthor(int authorID) {
