@@ -167,7 +167,7 @@ public class LibraryModel {
 		try {
 
 			Statement stmt = conn.createStatement();
-			String result = formattedTitle("Show Catalogue");
+			String result = formattedTitle("Show Loaned Books");
 			Map<Integer, Book> books = new HashMap<Integer, Book>();
 
 			// get info from Books
@@ -229,19 +229,157 @@ public class LibraryModel {
 	}
 
 	public String showAuthor(int authorID) {
-		return "Show Author Stub";
+		try{
+
+			Statement stmt = conn.createStatement();
+			String result = formattedTitle("Show Author");
+			Author author = new Author();
+
+			// get the Author
+			String sql = String.format("SELECT * FROM Author WHERE AuthorId = %d;", authorID);
+			res = stmt.executeQuery(sql);
+			// if no results
+			if(!res.isBeforeFirst()){
+				return result + noResults();
+			}
+			while(res.next()){
+				author.AuthorId = res.getInt("AuthorId");
+				author.Name = res.getString("Name").trim();
+				author.Surname = res.getString("Surname").trim();
+			}
+
+			// get the books they've authored
+			sql = String.format("SELECT ISBN, Title FROM Book_Author NATURAL JOIN Book WHERE AuthorId = %d;", authorID);
+			res = stmt.executeQuery(sql);
+			while(res.next()){
+				Book b = new Book();
+				b.ISBN = res.getInt("ISBN");
+				b.Title = res.getString("Title");
+				author.booksAuthored.add(b);
+			}
+
+			return result + author.toFullString() + newLine();
+
+		} catch(SQLException e){
+			return e.getMessage();
+		}
 	}
 
 	public String showAllAuthors() {
-		return "Show All Authors Stub";
+		try{
+
+			Statement stmt = conn.createStatement();
+			String result = formattedTitle("Show All Authors");
+			List<Author> authors = new ArrayList<Author>();
+
+			// get the authors basic details
+			String sql = String.format("SELECT * FROM Author ORDER BY AuthorId;");
+			res = stmt.executeQuery(sql);
+			// if no results
+			if(!res.isBeforeFirst()){
+				return result + noResults();
+			}
+			while(res.next()){
+				Author author = new Author();
+				author.AuthorId = res.getInt("AuthorId");
+				author.Name = res.getString("Name").trim();
+				author.Surname = res.getString("Surname").trim();
+				authors.add(author);
+			}
+
+			for(Author a: authors){
+				result += a.toShortString();
+			}
+
+			// print total number
+			result += newLine() + String.format("(%d results)", authors.size()) + newLine();
+
+			return result;
+
+		} catch(SQLException e){
+			return e.getMessage();
+		}
 	}
 
 	public String showCustomer(int customerID) {
-		return "Show Customer Stub";
+		try{
+
+			Statement stmt = conn.createStatement();
+			String result = formattedTitle("Show Customer");
+			Customer customer = new Customer();
+
+			// get the customer basic info
+			String sql = String.format("SELECT * FROM Customer WHERE CustomerID = %d;", customerID);
+			res = stmt.executeQuery(sql);
+			// if no results
+			if(!res.isBeforeFirst()){
+				return result + noResults();
+			}
+			while(res.next()){
+				customer.customerID = res.getInt("CustomerID");
+				customer.f_name = res.getString("F_Name").trim();
+				customer.l_name = res.getString("L_Name").trim();
+				customer.city = res.getString("City");
+				if(customer.city != null){
+					customer.city = customer.city.trim();
+				}
+			}
+
+			// get the books they have borrowed
+			sql = String.format("SELECT ISBN, Title FROM Book WHERE ISBN IN (SELECT ISBN from Cust_Book WHERE CustomerId = %d);", customerID);
+			res = stmt.executeQuery(sql);
+			while(res.next()){
+				Book book = new Book();
+				book.ISBN = res.getInt("ISBN");
+				book.Title = res.getString("Title");
+				customer.borrowing.add(book);
+			}
+
+			return result + customer.toFullString() + newLine();
+
+		} catch(SQLException e){
+			return e.getMessage();
+		}
 	}
 
 	public String showAllCustomers() {
-		return "Show All Customers Stub";
+		try{
+
+			Statement stmt = conn.createStatement();
+			String result = formattedTitle("Show All Customers");
+			List<Customer> customers = new ArrayList<Customer>();
+
+			// get the customers' basic details
+			String sql = String.format("SELECT * FROM Customer ORDER BY CustomerId;");
+			res = stmt.executeQuery(sql);
+			// if no results
+			if(!res.isBeforeFirst()){
+				return result + noResults();
+			}
+			while(res.next()){
+				Customer customer = new Customer();
+				customer.customerID = res.getInt("CustomerId");
+				customer.f_name = res.getString("F_Name").trim();
+				customer.l_name = res.getString("L_Name").trim();
+				customer.city = res.getString("City");
+				if(customer.city != null){
+					customer.city = customer.city.trim();
+				}
+				customers.add(customer);
+			}
+
+			for(Customer c: customers){
+				result += c.toShortString();
+			}
+
+			// print total number
+			result += newLine() + String.format("(%d results)", customers.size()) + newLine();
+
+			return result;
+
+		} catch(SQLException e){
+			return e.getMessage();
+		}
 	}
 
 	public String borrowBook(int isbn, int customerID,
