@@ -5,6 +5,7 @@
  */
 
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -22,6 +23,7 @@ public class LibraryModel {
 
 	private String url = "jdbc:postgresql://db.ecs.vuw.ac.nz/broomeisab_jdbc";
 	private Connection conn;
+	private Statement stmt;
 	private ResultSet res;
 
 	// For use in creating dialogs and making them modal
@@ -74,7 +76,7 @@ public class LibraryModel {
 
 		try{
 			String result = formattedTitle("Book Lookup");
-			Statement stmt = conn.createStatement();
+			stmt = conn.createStatement();
 			Book book = new Book();
 
 			// add info from Book
@@ -92,7 +94,7 @@ public class LibraryModel {
 			}
 
 			// add info about Authors
-			sql = String.format("SELECT AuthorSeqNo, Name, Surname FROM Author NATURAL JOIN (SELECT * FROM Book_Author WHERE ISBN = %d ORDER BY AuthorSeqNo) as BA;", isbn);
+			sql = String.format("SELECT AuthorSeqNo, Name, Surname FROM Author NATURAL JOIN (SELEC * FROM Book_Author WHERE ISBN = %d ORDER BY AuthorSeqNo) as BA;", isbn);
 			res = stmt.executeQuery(sql);
 			while(res.next()){
 				Author author = new Author();
@@ -107,15 +109,22 @@ public class LibraryModel {
 			return result;
 
 		} catch(SQLException e){
-			return e.getMessage();
+			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+			return "";
+		} finally{
+			try {
+				res.close();
+				stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
 		}
-
 	}
 
 	public String showCatalogue() {
 		try{
 
-			Statement stmt = conn.createStatement();
+			stmt = conn.createStatement();
 			String result = formattedTitle("Show Catalogue");
 			Map<Integer, Book> books = new HashMap<Integer, Book>();
 
@@ -159,14 +168,22 @@ public class LibraryModel {
 			return result;
 
 		} catch(SQLException e){
-			return e.getMessage();
+			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+			return "";
+		} finally{
+			try {
+				res.close();
+				stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 
 	public String showLoanedBooks() {
 		try {
 
-			Statement stmt = conn.createStatement();
+			stmt = conn.createStatement();
 			String result = formattedTitle("Show Loaned Books");
 			Map<Integer, Book> books = new HashMap<Integer, Book>();
 
@@ -223,15 +240,23 @@ public class LibraryModel {
 
 			return result;
 
-		} catch (SQLException e) {
-			return e.getMessage();
+		} catch(SQLException e){
+			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+			return "";
+		} finally{
+			try {
+				res.close();
+				stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 
 	public String showAuthor(int authorID) {
 		try{
 
-			Statement stmt = conn.createStatement();
+			stmt = conn.createStatement();
 			String result = formattedTitle("Show Author");
 			Author author = new Author();
 
@@ -261,14 +286,22 @@ public class LibraryModel {
 			return result + author.toFullString() + newLine();
 
 		} catch(SQLException e){
-			return e.getMessage();
+			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+			return "";
+		} finally{
+			try {
+				res.close();
+				stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 
 	public String showAllAuthors() {
 		try{
 
-			Statement stmt = conn.createStatement();
+			stmt = conn.createStatement();
 			String result = formattedTitle("Show All Authors");
 			List<Author> authors = new ArrayList<Author>();
 
@@ -297,14 +330,22 @@ public class LibraryModel {
 			return result;
 
 		} catch(SQLException e){
-			return e.getMessage();
+			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+			return "";
+		} finally{
+			try {
+				res.close();
+				stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 
 	public String showCustomer(int customerID) {
 		try{
 
-			Statement stmt = conn.createStatement();
+			stmt = conn.createStatement();
 			String result = formattedTitle("Show Customer");
 			Customer customer = new Customer();
 
@@ -338,14 +379,22 @@ public class LibraryModel {
 			return result + customer.toFullString() + newLine();
 
 		} catch(SQLException e){
-			return e.getMessage();
+			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+			return "";
+		} finally{
+			try {
+				res.close();
+				stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 
 	public String showAllCustomers() {
 		try{
 
-			Statement stmt = conn.createStatement();
+			stmt = conn.createStatement();
 			String result = formattedTitle("Show All Customers");
 			List<Customer> customers = new ArrayList<Customer>();
 
@@ -378,13 +427,93 @@ public class LibraryModel {
 			return result;
 
 		} catch(SQLException e){
-			return e.getMessage();
+			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+			return "";
+		} finally{
+			try {
+				res.close();
+				stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 
-	public String borrowBook(int isbn, int customerID,
-			int day, int month, int year) {
-		return "Borrow Book Stub";
+	public String borrowBook(int isbn, int customerID, int day, int month, int year) {
+		try{
+			String result = formattedTitle("Borrow Book");
+
+			// begin transaction
+			conn.setAutoCommit(false);
+			stmt = conn.createStatement();
+
+			// check the customer exists and lock
+			String sql = String.format("SELECT * FROM Customer WHERE CustomerID = %d FOR UPDATE;", customerID);
+			res = stmt.executeQuery(sql);
+			if(!res.isBeforeFirst()){
+				conn.rollback();
+				return result + String.format("\tCustomer %d does not exist.", customerID) + newLine();
+			}
+			res.next();
+			String custName = String.format("%s %s",res.getString("F_Name").trim(), res.getString("L_Name").trim());
+
+			// select the book and lock
+			sql = String.format("SELECT * from Book where ISBN = %d FOR UPDATE;", isbn);
+			res = stmt.executeQuery(sql);
+			res.next();
+			// get info about the book
+			String title = res.getString("Title");
+			// check that the book is available
+			if(res.getInt("numLeft") == 0){
+				conn.rollback();
+				return result + String.format("\tThere are no copies of (%d)%s available.", isbn, title) + newLine();
+			}
+
+			// check that the customer isn't already borrowing it
+			sql = String.format("SELECT * from Cust_Book WHERE CustomerId = %d;", customerID);
+			res = stmt.executeQuery(sql);
+			if(res.isBeforeFirst()){
+				conn.rollback();
+				return result + String.format("\tCustomer %d already has that book on loan.", customerID) + newLine();
+			}
+
+			// insert an entry into Cust_Book
+			String date = String.format("%04d-%02d-%02d", year, month, day);
+			sql = String.format("INSERT INTO Cust_Book (customerId, DueDate, ISBN) VALUES (%d, date '%s', %d);", customerID, date, isbn);
+			int updated = stmt.executeUpdate(sql);
+			if(updated != 1){
+				conn.rollback();
+				return result + "\tSomething weird happened. The book could not be borrowed";
+			}
+
+			// pause
+			JOptionPane.showMessageDialog(dialogParent, "Paused. Press ok to continue.", "Paused", JOptionPane.OK_OPTION);
+
+			// edit the numLeft in Book
+			sql = String.format("UPDATE Book SET numLeft = numLeft - 1 WHERE ISBN = %d", isbn);
+			updated = stmt.executeUpdate(sql);
+			if(updated != 1){
+				conn.rollback();
+				return result + "\tSomething weird happened, and the book could not be borrowed" + newLine();
+			}
+
+			// commit
+			conn.commit();
+
+			return result + String.format("(%d)%s successfully borrowed (%d)%s.  Due back on %s.", customerID, custName, isbn, title, date) + newLine();
+
+		} catch(SQLException e){
+			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+			e.printStackTrace();
+			return "";
+		} finally{
+			try {
+				res.close();
+				stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();  // this shouldn't happen
+			}
+		}
 	}
 
 	public String returnBook(int isbn, int customerid) {
@@ -404,5 +533,11 @@ public class LibraryModel {
 	}
 
 	public void closeDBConnection() {
+		try{
+			conn.close();
+			System.out.println("Connection closed");
+		} catch (SQLException e){
+			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+		}
 	}
 }
