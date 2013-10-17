@@ -42,7 +42,6 @@ public class LibraryModel {
 		}
 	}
 
-
 	//==========================================================================================
 	// Formatting helper/wrapper methods
 	//==========================================================================================
@@ -192,7 +191,7 @@ public class LibraryModel {
 			res = stmt.executeQuery(sql);
 			// if no results
 			if(!res.isBeforeFirst()){
-				return result + noResults();
+				return result + "\t" + noResults() + newLine();
 			}
 			while(res.next()){
 				Book book = new Book();
@@ -441,6 +440,7 @@ public class LibraryModel {
 
 	public String borrowBook(int isbn, int customerID, int day, int month, int year) {
 		try{
+
 			String result = formattedTitle("Borrow Book");
 
 			// begin transaction
@@ -460,13 +460,17 @@ public class LibraryModel {
 			// select the book and lock
 			sql = String.format("SELECT * from Book where ISBN = %d FOR UPDATE;", isbn);
 			res = stmt.executeQuery(sql);
+			if(!res.isBeforeFirst()){
+				conn.rollback();
+				return result + String.format("\tBook %d does not exist.", isbn) + newLine();
+			}
 			res.next();
 			// get info about the book
-			String title = res.getString("Title");
+			String title = res.getString("Title").trim();
 			// check that the book is available
 			if(res.getInt("numLeft") == 0){
 				conn.rollback();
-				return result + String.format("\tThere are no copies of (%d)%s available.", isbn, title) + newLine();
+				return result + String.format("\tThere are no copies of (%d) %s available.", isbn, title) + newLine();
 			}
 
 			// check that the customer isn't already borrowing it
@@ -474,7 +478,7 @@ public class LibraryModel {
 			res = stmt.executeQuery(sql);
 			if(res.isBeforeFirst()){
 				conn.rollback();
-				return result + String.format("\tCustomer %d already has that book on loan.", customerID) + newLine();
+				return result + String.format("\tCustomer (%d) %s already has book (%d) %s on loan.", customerID, custName, isbn, title) + newLine();
 			}
 
 			// insert an entry into Cust_Book
@@ -500,7 +504,7 @@ public class LibraryModel {
 			// commit
 			conn.commit();
 
-			return result + String.format("(%d)%s successfully borrowed (%d)%s.  Due back on %s.", customerID, custName, isbn, title, date) + newLine();
+			return result + String.format("\t(%d) %s successfully borrowed (%d) %s.  Due back on %s.", customerID, custName, isbn, title, date) + newLine();
 
 		} catch(SQLException e){
 			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
@@ -516,20 +520,285 @@ public class LibraryModel {
 		}
 	}
 
-	public String returnBook(int isbn, int customerid) {
-		return "Return Book Stub";
+	public String returnBook(int isbn, int customerID) {
+		try{
+
+			String result = formattedTitle("Return Book");
+
+			// begin transaction
+			conn.setAutoCommit(false);
+			stmt = conn.createStatement();
+
+			// check the customer exists and lock
+			String sql = String.format("SELECT * FROM Customer WHERE CustomerID = %d FOR UPDATE;", customerID);
+			res = stmt.executeQuery(sql);
+			if(!res.isBeforeFirst()){
+				conn.rollback();
+				return result + String.format("\tCustomer %d does not exist.", customerID) + newLine();
+			}
+			res.next();
+			String custName = String.format("%s %s",res.getString("F_Name").trim(), res.getString("L_Name").trim());
+
+			// check book exists and lock
+			sql = String.format("SELECT * from Book where ISBN = %d FOR UPDATE;", isbn);
+			res = stmt.executeQuery(sql);
+			if(!res.isBeforeFirst()){
+				conn.rollback();
+				return result + String.format("\tBook %d does not exist.", isbn) + newLine();
+			}
+			res.next();
+			// get info about the book
+			String title = res.getString("Title").trim();
+			// check that the book is on loan
+			boolean someOnLoan = res.getInt("numLeft") < res.getInt("NumOfCop");
+
+			// check that the customer is currently borrowing it and lock
+			sql = String.format("SELECT * from Cust_Book WHERE CustomerId = %d FOR UPDATE;", customerID);
+			res = stmt.executeQuery(sql);
+			if(!res.isBeforeFirst()){
+				conn.rollback();
+				return result + String.format("\tCustomer %d is not currently borrowing that book.", customerID) + newLine();
+			}
+			else if(!someOnLoan){
+				throw new SQLException("The database is in an inconsistent state. Customer " + customerID + " is borrowing the book "+ isbn + ", so there should be some copies out in the Book table.");
+			}
+
+			// delete the entry from Cust_Book
+			sql = String.format("DELETE FROM Cust_Book WHERE CustomerId = %d;", customerID);
+			int updated = stmt.executeUpdate(sql);
+			if(updated != 1){
+				conn.rollback();
+				return result + "\tSomething weird happened. The book could not be returned.";
+			}
+
+			// pause
+			JOptionPane.showMessageDialog(dialogParent, "Paused. Press ok to continue.", "Paused", JOptionPane.OK_OPTION);
+
+			// edit the numLeft in Book
+			sql = String.format("UPDATE Book SET numLeft = numLeft + 1 WHERE ISBN = %d", isbn);
+			updated = stmt.executeUpdate(sql);
+			if(updated != 1){
+				conn.rollback();
+				return result + "\tSomething weird happened, and the book could not be returned." + newLine();
+			}
+
+			// commit
+			conn.commit();
+
+			return result + String.format("\t(%d) %s successfully returned (%d) %s.", customerID, custName, isbn, title) + newLine();
+
+		} catch(SQLException e){
+			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+			e.printStackTrace();
+			return "";
+		} finally{
+			try {
+				res.close();
+				stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();  // this shouldn't happen
+			}
+		}
 	}
 
 	public String deleteCus(int customerID){
-		return "Delete Customer Stub";
+		try{
+
+			String result = formattedTitle("Delete Customer");
+
+			// begin transaction
+			conn.setAutoCommit(false);
+			stmt = conn.createStatement();
+
+			// Step 0 - check allowed
+			//-----------------------
+
+			// check the customer exists and lock
+			String sql = String.format("SELECT * FROM Customer WHERE CustomerID = %d FOR UPDATE;", customerID);
+			res = stmt.executeQuery(sql);
+			if(!res.isBeforeFirst()){
+				conn.rollback();
+				return result + String.format("\tCustomer %d does not exist.", customerID) + newLine();
+			}
+			res.next();
+			String custName = String.format("%s %s",res.getString("F_Name").trim(), res.getString("L_Name").trim());
+
+			// make sure the customer isn't borrowing any books
+			sql = String.format("SELECT * from Cust_Book WHERE CustomerId = %d;", customerID);
+			res = stmt.executeQuery(sql);
+			if(res.isBeforeFirst()){
+				conn.rollback();
+				return result + String.format("\tCustomer (%d) %s is currently borrowing some books. They must be returned first.", customerID, custName) + newLine();
+			}
+
+			// Step 1 - delete from Customer
+			//------------------------------
+
+			// delete the customer
+			sql = String.format("DELETE FROM Customer WHERE CustomerId = %d;", customerID);
+			int updated = stmt.executeUpdate(sql);
+			if(updated != 1){
+				conn.rollback();
+				return result + "\tSomething weird happened. The customer was not deleted.";
+			}
+
+			// commit
+			conn.commit();
+
+			return result + String.format("\tSuccessfully deleted customer (%d) %s.", customerID, custName) + newLine();
+
+		} catch(SQLException e){
+			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+			e.printStackTrace();
+			return "";
+		} finally{
+			try {
+				res.close();
+				stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();  // this shouldn't happen
+			}
+		}
 	}
 
-	public String deleteBook(int bookID){
-		return "Delete Book Stub";
+	/**
+	 * This method will delete a book as long as noone is currently borrowing it.
+	 *
+	 * @param isbn
+	 * @return
+	 */
+	public String deleteBook(int isbn){
+		try{
+
+			String result = formattedTitle("Delete Book");
+
+			// begin transaction
+			conn.setAutoCommit(false);
+			stmt = conn.createStatement();
+
+			// Step 0 - check allowed
+			//-----------------------
+
+			// check the book exists and lock
+			String sql = String.format("SELECT * FROM Book WHERE ISBN = %d FOR UPDATE;", isbn);
+			res = stmt.executeQuery(sql);
+			if(!res.isBeforeFirst()){
+				conn.rollback();
+				return result + String.format("\tBook %d does not exist.", isbn) + newLine();
+			}
+			res.next();
+			String title = res.getString("Title").trim();
+
+			// make sure noone is borrowing it
+			sql = String.format("SELECT * from Cust_Book WHERE isbn = %d;", isbn);
+			res = stmt.executeQuery(sql);
+			if(res.isBeforeFirst()){
+				conn.rollback();
+				return result + String.format("\tBook (%d) %s is currently on loan. All copies must be returned first.", isbn, title) + newLine();
+			}
+
+			// Step 1 - delete from Book_Author
+			//----------------------------------
+
+			sql = String.format("DELETE FROM Book_Author WHERE ISBN = %d;", isbn);
+			int updated = stmt.executeUpdate(sql);
+			if(updated == 0){
+				conn.rollback();
+				return result + "\tSomething weird happened. The book was not deleted.";
+			}
+
+			// Step 2 - delete from Book
+			//--------------------------
+
+			sql = String.format("DELETE FROM Book WHERE ISBN = %d;", isbn);
+			updated = stmt.executeUpdate(sql);
+			if(updated != 1){
+				conn.rollback();
+				return result + "\tSomething weird happened. The book was not deleted.";
+			}
+
+			// commit
+			conn.commit();
+
+			return result + String.format("\tSuccessfully deleted book (%d) %s.", isbn, title) + newLine();
+
+		} catch(SQLException e){
+			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+			e.printStackTrace();
+			return "";
+		} finally{
+			try {
+				res.close();
+				stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();  // this shouldn't happen
+			}
+		}
 	}
 
+	/**
+	 * This method will delete the author if there are no books in the system the Author has written.
+	 * (i.e. no entries for that authorID in Book_Author table).
+	 * @param authorID
+	 * @return
+	 */
 	public String deleteAuthor(int authorID){
-		return "Delete Author Stub";
+		try{
+
+			String result = formattedTitle("Delete Author");
+
+			// begin transaction
+			conn.setAutoCommit(false);
+			stmt = conn.createStatement();
+
+			// Step 0 - check allowed
+			//-----------------------
+
+			// check the author exists and lock
+			String sql = String.format("SELECT * FROM Author WHERE AuthorId = %d FOR UPDATE;", authorID);
+			res = stmt.executeQuery(sql);
+			if(!res.isBeforeFirst()){
+				conn.rollback();
+				return result + String.format("\tAuthor %d does not exist.", authorID) + newLine();
+			}
+			res.next();
+			String authorName = res.getString("Name").trim() + " " + res.getString("Surname").trim();
+
+			// make sure no books in the system by that author
+			sql = String.format("SELECT * from Book_Author WHERE AuthorId = %d;", authorID);
+			res = stmt.executeQuery(sql);
+			if(res.isBeforeFirst()){
+				conn.rollback();
+				return result + String.format("\tThere are still books by (%d) %s in the system. All books must be deleted first.", authorID, authorName) + newLine();
+			}
+
+			// Step 1 - delete from Author
+			//--------------------------
+
+			sql = String.format("DELETE FROM Author WHERE AuthorId = %d;", authorID);
+			int updated = stmt.executeUpdate(sql);
+			if(updated != 1){
+				conn.rollback();
+				return result + "\tSomething weird happened. The author was not deleted.";
+			}
+
+			// commit
+			conn.commit();
+
+			return result + String.format("\tSuccessfully deleted author (%d) %s.", authorID, authorName) + newLine();
+
+		} catch(SQLException e){
+			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+			e.printStackTrace();
+			return "";
+		} finally{
+			try {
+				res.close();
+				stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();  // this shouldn't happen
+			}
+		}
 	}
 
 	public void closeDBConnection() {
