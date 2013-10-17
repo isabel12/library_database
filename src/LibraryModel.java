@@ -33,6 +33,8 @@ public class LibraryModel {
 		dialogParent = parent;
 
 		// connect to the database
+		this.url = String.format("jdbc:postgresql://db.ecs.vuw.ac.nz/%s_jdbc", userid);
+		
 		try {
 			this.conn = DriverManager.getConnection(url, userid, password);
 			System.out.println("Connected to database " + url);
@@ -66,7 +68,7 @@ public class LibraryModel {
 	}
 
 	private String noResults(){
-		return "(No results)\r\n\r\n";
+		return "(No results)" + newLine();
 	}
 
 	//===========================================================================================
@@ -85,15 +87,14 @@ public class LibraryModel {
 			if(!res.isBeforeFirst()){
 				return result + noResults();
 			}
-			while(res.next()){
-				book.ISBN = res.getInt("ISBN");
-				book.Title = res.getString("Title");
-				book.NumOfCop = res.getInt("NumOfCop");
-				book.NumLeft = res.getInt("NumLeft");
-			}
+			res.next()
+			book.ISBN = res.getInt("ISBN");
+			book.Title = res.getString("Title");
+			book.NumOfCop = res.getInt("NumOfCop");
+			book.NumLeft = res.getInt("NumLeft");
 
 			// add info about Authors
-			sql = String.format("SELECT AuthorSeqNo, Name, Surname FROM Author NATURAL JOIN (SELEC * FROM Book_Author WHERE ISBN = %d ORDER BY AuthorSeqNo) as BA;", isbn);
+			sql = String.format("SELECT AuthorSeqNo, Name, Surname FROM Author NATURAL JOIN (SELECT * FROM Book_Author WHERE ISBN = %d ORDER BY AuthorSeqNo) as BA;", isbn);
 			res = stmt.executeQuery(sql);
 			while(res.next()){
 				Author author = new Author();
@@ -191,7 +192,7 @@ public class LibraryModel {
 			res = stmt.executeQuery(sql);
 			// if no results
 			if(!res.isBeforeFirst()){
-				return result + "\t" + noResults() + newLine();
+				return result + noResults() + newLine();
 			}
 			while(res.next()){
 				Book book = new Book();
@@ -266,11 +267,10 @@ public class LibraryModel {
 			if(!res.isBeforeFirst()){
 				return result + noResults();
 			}
-			while(res.next()){
-				author.AuthorId = res.getInt("AuthorId");
-				author.Name = res.getString("Name").trim();
-				author.Surname = res.getString("Surname").trim();
-			}
+			res.next()
+			author.AuthorId = res.getInt("AuthorId");
+			author.Name = res.getString("Name").trim();
+			author.Surname = res.getString("Surname").trim();
 
 			// get the books they've authored
 			sql = String.format("SELECT ISBN, Title FROM Book_Author NATURAL JOIN Book WHERE AuthorId = %d;", authorID);
@@ -465,8 +465,8 @@ public class LibraryModel {
 				return result + String.format("\tBook %d does not exist.", isbn) + newLine();
 			}
 			res.next();
-			// get info about the book
 			String title = res.getString("Title").trim();
+			
 			// check that the book is available
 			if(res.getInt("numLeft") == 0){
 				conn.rollback();
@@ -508,7 +508,6 @@ public class LibraryModel {
 
 		} catch(SQLException e){
 			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
-			e.printStackTrace();
 			return "";
 		} finally{
 			try {
@@ -547,8 +546,8 @@ public class LibraryModel {
 				return result + String.format("\tBook %d does not exist.", isbn) + newLine();
 			}
 			res.next();
-			// get info about the book
 			String title = res.getString("Title").trim();
+			
 			// check that the book is on loan
 			boolean someOnLoan = res.getInt("numLeft") < res.getInt("NumOfCop");
 
@@ -589,7 +588,6 @@ public class LibraryModel {
 
 		} catch(SQLException e){
 			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
-			e.printStackTrace();
 			return "";
 		} finally{
 			try {
@@ -649,7 +647,6 @@ public class LibraryModel {
 
 		} catch(SQLException e){
 			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
-			e.printStackTrace();
 			return "";
 		} finally{
 			try {
@@ -724,7 +721,6 @@ public class LibraryModel {
 
 		} catch(SQLException e){
 			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
-			e.printStackTrace();
 			return "";
 		} finally{
 			try {
@@ -789,7 +785,6 @@ public class LibraryModel {
 
 		} catch(SQLException e){
 			JOptionPane.showMessageDialog(dialogParent, e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
-			e.printStackTrace();
 			return "";
 		} finally{
 			try {
