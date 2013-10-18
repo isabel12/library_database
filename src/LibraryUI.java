@@ -84,13 +84,10 @@ public class LibraryUI extends JFrame {
 		setSize(600, 600);
 
 		// Show Authentication dialog
-/*		AuthDialog ad = new AuthDialog(this, "Authentication");
+		AuthDialog ad = new AuthDialog(this, "Authentication");
 		ad.setVisible(true);
 		String userName = ad.getUserName();
-		String password = ad.getDatabasePassword();*/
-
-		String userName = "broomeisab";
-		String password = "password12";
+		String password = ad.getDatabasePassword();
 
 		// Create data model
 		model = new LibraryModel(this, userName, password);
