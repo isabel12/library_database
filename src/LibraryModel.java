@@ -29,19 +29,13 @@ public class LibraryModel {
 	// For use in creating dialogs and making them modal
 	private JFrame dialogParent;
 
-	public LibraryModel(JFrame parent, String userid, String password){
+	public LibraryModel(JFrame parent, String userid, String password) throws SQLException{
 		dialogParent = parent;
 
 		// connect to the database
 		this.url = String.format("jdbc:postgresql://db.ecs.vuw.ac.nz/%s_jdbc", userid);
-		
-		try {
-			this.conn = DriverManager.getConnection(url, userid, password);
-			System.out.println("Connected to database " + url);
-
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
+		this.conn = DriverManager.getConnection(url, userid, password);
+		System.out.println("Connected to database " + url);		
 	}
 
 	//==========================================================================================
@@ -87,7 +81,7 @@ public class LibraryModel {
 			if(!res.isBeforeFirst()){
 				return result + noResults();
 			}
-			res.next()
+			res.next();
 			book.ISBN = res.getInt("ISBN");
 			book.Title = res.getString("Title");
 			book.NumOfCop = res.getInt("NumOfCop");
@@ -267,7 +261,7 @@ public class LibraryModel {
 			if(!res.isBeforeFirst()){
 				return result + noResults();
 			}
-			res.next()
+			res.next();
 			author.AuthorId = res.getInt("AuthorId");
 			author.Name = res.getString("Name").trim();
 			author.Surname = res.getString("Surname").trim();

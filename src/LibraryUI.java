@@ -90,7 +90,12 @@ public class LibraryUI extends JFrame {
 		String password = ad.getDatabasePassword();
 
 		// Create data model
-		model = new LibraryModel(this, userName, password);
+		try{
+			model = new LibraryModel(this, userName, password);
+		} catch(SQLException e){
+			JOptionPane.showMessageDialog(dialogParent, "Could not connect to the database: " + e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+			System.exit(0);
+		}
 
 		// Center window on screen
 		GraphicsEnvironment ge =
